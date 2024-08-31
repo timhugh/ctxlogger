@@ -1,4 +1,4 @@
-package logger_test
+package ctxlogger_test
 
 import (
 	"context"
