@@ -1,9 +1,11 @@
 package ctxlogger
 
 import (
-    "fmt"
-    "io"
-    "time"
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"time"
 )
 
 type Level int
@@ -16,42 +18,74 @@ const (
 )
 
 var levelStrings = map[Level]string{
-    DebugLevel: "DEBUG",
-    InfoLevel:  "INFO",
-    WarnLevel:  "WARN",
-    ErrorLevel: "ERROR",
+	DebugLevel: "DEBUG",
+	InfoLevel:  "INFO",
+	WarnLevel:  "WARN",
+	ErrorLevel: "ERROR",
 }
 
 const timestampFormat = "2006-01-02T15:04:05Z"
 
-type Logger struct {
-    Level Level
-    Out   io.Writer
+var level Level = InfoLevel
+var out io.Writer = os.Stdout
+
+type contextKeyType struct{}
+
+var contextKey contextKeyType
+
+func SetLevel(l Level) {
+	level = l
 }
 
-func (l *Logger) Debug(msg string) {
-    l.log(DebugLevel, msg)
+func SetOutput(o io.Writer) {
+	out = o
 }
 
-func (l *Logger) Info(msg string) {
-    l.log(InfoLevel, msg)
+func Debug(ctx context.Context, msg string) {
+	log(ctx, DebugLevel, msg)
 }
 
-func (l *Logger) Warn(msg string) {
-    l.log(WarnLevel, msg)
+func Info(ctx context.Context, msg string) {
+	log(ctx, InfoLevel, msg)
 }
 
-func (l *Logger) Error(msg string) {
-    l.log(ErrorLevel, msg)
+func Warn(ctx context.Context, msg string) {
+	log(ctx, WarnLevel, msg)
 }
 
-func (l *Logger) log(level Level, msg string) {
-    if level >= l.Level {
-        now := time.Now().UTC()
-        _, err := l.Out.Write([]byte(now.Format(timestampFormat) + " [" + levelStrings[level] + "] " + msg))
-        if err != nil {
-            fmt.Printf("failed to write log message: %s\n", err.Error())
-        }
-    }
+func Error(ctx context.Context, msg string) {
+	log(ctx, ErrorLevel, msg)
 }
 
+func AddParam(ctx context.Context, key, value string) context.Context {
+	paramHash := ctx.Value(contextKey)
+	params, ok := paramHash.(map[string]string)
+	if !ok {
+		params = make(map[string]string)
+	}
+	params[key] = value
+	return context.WithValue(ctx, contextKey, params)
+}
+
+func log(ctx context.Context, l Level, msg string) {
+	if l < level {
+		return
+	}
+	_, err := fmt.Fprintf(out, "%s [%s] %s %s\n", time.Now().UTC().Format(timestampFormat), levelStrings[l], msg, stringifyParams(ctx))
+	if err != nil {
+		fmt.Printf("failed to write log message: %s\n", err.Error())
+	}
+}
+
+func stringifyParams(ctx context.Context) string {
+	paramHash := ctx.Value(contextKey)
+	params, ok := paramHash.(map[string]string)
+	if !ok {
+		return ""
+	}
+	var s string
+	for k, v := range params {
+		s += k + "=" + v + " "
+	}
+	return s
+}
