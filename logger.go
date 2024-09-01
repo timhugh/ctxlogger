@@ -41,20 +41,20 @@ func SetOutput(o io.Writer) {
 	out = o
 }
 
-func Debug(ctx context.Context, msg string) {
-	log(ctx, DebugLevel, msg)
+func Debug(ctx context.Context, msg string, params ...interface{}) {
+	log(ctx, DebugLevel, msg, params...)
 }
 
-func Info(ctx context.Context, msg string) {
-	log(ctx, InfoLevel, msg)
+func Info(ctx context.Context, msg string, params ...interface{}) {
+	log(ctx, InfoLevel, msg, params...)
 }
 
-func Warn(ctx context.Context, msg string) {
-	log(ctx, WarnLevel, msg)
+func Warn(ctx context.Context, msg string, params ...interface{}) {
+	log(ctx, WarnLevel, msg, params...)
 }
 
-func Error(ctx context.Context, msg string) {
-	log(ctx, ErrorLevel, msg)
+func Error(ctx context.Context, msg string, params ...interface{}) {
+	log(ctx, ErrorLevel, msg, params...)
 }
 
 func AddParam(ctx context.Context, key, value string) context.Context {
@@ -67,11 +67,12 @@ func AddParam(ctx context.Context, key, value string) context.Context {
 	return context.WithValue(ctx, contextKey, params)
 }
 
-func log(ctx context.Context, l Level, msg string) {
+func log(ctx context.Context, l Level, msg string, params ...interface{}) {
 	if l < level {
 		return
 	}
-	_, err := fmt.Fprintf(out, "%s [%s] %s %s\n", time.Now().UTC().Format(timestampFormat), levelStrings[l], msg, stringifyParams(ctx))
+	fullMsg := fmt.Sprintf(msg, params...)
+	_, err := fmt.Fprintf(out, "%s [%s] %s %s\n", time.Now().UTC().Format(timestampFormat), levelStrings[l], fullMsg, stringifyParams(ctx))
 	if err != nil {
 		fmt.Printf("failed to write log message: %s\n", err.Error())
 	}
