@@ -2,9 +2,9 @@ package ctxlogger_test
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/timhugh/ctxlogger"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -50,7 +50,10 @@ func Test_BasicLogging(t *testing.T) {
 
 				logAtLevel(msgLevel, ctx, "test message")
 				if shouldLog {
-					assert.Regexp(t, regexp.MustCompile(timestampRegex+` \[`+msgLevelName+`\] test message`), out.String())
+					assertJSON(t, map[string]interface{}{
+						"level":   msgLevelName,
+						"message": "test message",
+					}, out.String())
 				} else {
 					assert.Empty(t, out.String())
 				}
@@ -68,8 +71,11 @@ func Test_LoggingWithFormat(t *testing.T) {
 		msgLevelName := levelStrings[msgLevel]
 		t.Run(msgLevelName+" should log with format", func(t *testing.T) {
 			out.Reset()
-			logAtLevel(msgLevel, context.Background(), "test message with format %s", "format")
-			assert.Regexp(t, regexp.MustCompile(timestampRegex+` \[`+msgLevelName+`\] test message with format`), out.String())
+			logAtLevel(msgLevel, context.Background(), "test message %s", "with format")
+			assertJSON(t, map[string]interface{}{
+				"level":   msgLevelName,
+				"message": "test message with format",
+			}, out.String())
 		})
 	}
 }
@@ -82,14 +88,26 @@ func Test_LoggingContextParams(t *testing.T) {
 	for _, msgLevel := range logLevels {
 		msgLevelName := levelStrings[msgLevel]
 		t.Run(msgLevelName+" should log context params", func(t *testing.T) {
+			out.Reset()
 			ctx := context.Background()
 			ctx = ctxlogger.AddParam(ctx, "key", "value")
 
 			logAtLevel(msgLevel, ctx, "test message")
 
-			assert.Regexp(t, regexp.MustCompile(timestampRegex+` \[`+msgLevelName+`\] test message key=value`), out.String())
+			assertJSON(t, map[string]interface{}{
+				"level":   msgLevelName,
+				"message": "test message",
+				"key":     "value",
+			}, out.String())
 		})
 	}
+}
+
+func assertJSON(t *testing.T, expected map[string]interface{}, actual string) {
+	var actualValues map[string]interface{}
+	err := json.Unmarshal([]byte(actual), &actualValues)
+	assert.NoError(t, err)
+	assert.EqualValues(t, expected, actualValues)
 }
 
 func logAtLevel(level ctxlogger.Level, ctx context.Context, msg string, params ...interface{}) {

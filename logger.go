@@ -2,10 +2,10 @@ package ctxlogger
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"time"
 )
 
 type Level int
@@ -24,9 +24,7 @@ var levelStrings = map[Level]string{
 	ErrorLevel: "ERROR",
 }
 
-const timestampFormat = "2006-01-02T15:04:05Z"
-
-var level Level = InfoLevel
+var level = InfoLevel
 var out io.Writer = os.Stdout
 
 type contextKeyType struct{}
@@ -67,26 +65,27 @@ func AddParam(ctx context.Context, key, value string) context.Context {
 	return context.WithValue(ctx, contextKey, params)
 }
 
-func log(ctx context.Context, l Level, msg string, params ...interface{}) {
+func log(ctx context.Context, l Level, msgFormat string, msgParams ...interface{}) {
 	if l < level {
 		return
 	}
-	fullMsg := fmt.Sprintf(msg, params...)
-	_, err := fmt.Fprintf(out, "%s [%s] %s %s\n", time.Now().UTC().Format(timestampFormat), levelStrings[l], fullMsg, stringifyParams(ctx))
+	fullMsg := map[string]string{
+		"message": fmt.Sprintf(msgFormat, msgParams...),
+		"level":   levelStrings[l],
+	}
+	paramHash := ctx.Value(contextKey)
+	logParams, ok := paramHash.(map[string]string)
+	if ok {
+		for k, v := range logParams {
+			fullMsg[k] = v
+		}
+	}
+	msg, err := json.Marshal(fullMsg)
+	if err != nil {
+		fmt.Printf("failed to marshal log message: %s\n", err.Error())
+	}
+	_, err = fmt.Fprintln(out, string(msg))
 	if err != nil {
 		fmt.Printf("failed to write log message: %s\n", err.Error())
 	}
-}
-
-func stringifyParams(ctx context.Context) string {
-	paramHash := ctx.Value(contextKey)
-	params, ok := paramHash.(map[string]string)
-	if !ok {
-		return ""
-	}
-	var s string
-	for k, v := range params {
-		s += k + "=" + v + " "
-	}
-	return s
 }
